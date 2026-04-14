@@ -1,0 +1,1 @@
+ALTER TABLE "profiles" ADD COLUMN "wallet_address" varchar(42);

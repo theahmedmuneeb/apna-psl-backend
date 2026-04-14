@@ -1,0 +1,1 @@
+ALTER TABLE "teams" ADD COLUMN "sportmonks_team_id" integer NOT NULL;
