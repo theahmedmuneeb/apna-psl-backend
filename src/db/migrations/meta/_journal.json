@@ -71,6 +71,34 @@
       "when": 1776182662251,
       "tag": "0009_deep_callisto",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1776190039594,
+      "tag": "0010_slow_lilandra",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776192444417,
+      "tag": "0011_pink_ulik",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1776199987123,
+      "tag": "0012_flawless_exiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1776213649095,
+      "tag": "0013_quiet_risque",
+      "breakpoints": true
     }
   ]
 }

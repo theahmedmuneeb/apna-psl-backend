@@ -113,6 +113,7 @@ export type SportmonksLineupItem = {
 };
 
 export type SportmonksVenue = {
+  id?: number;
   name?: string;
   city?: string;
 };

@@ -1,6 +1,7 @@
 import axios, { type AxiosRequestConfig, type Method } from "axios";
 import { env } from "@/env";
 import {
+    type SportmonksTeam,
     type SportmonksFixture,
     type SportmonksPlayer,
     type SportmonksResponse,
@@ -87,6 +88,12 @@ export const psl = {
                 include:
                     "localteam,visitorteam,venue,runs,balls,balls.batsman,balls.bowler,balls.score,batting.batsman,bowling.bowler,lineup,tosswon",
             },
+            ...configOverride,
+        }),
+
+    seasonTeams: (configOverride?: AxiosRequestConfig) =>
+        request<any>("get", `/seasons/${env.SPORTMONKS_PSL_SEASON_ID}`, {
+            params: { include: "teams", "filter[league_id]": "", "filter[season_id]": "" },
             ...configOverride,
         }),
 

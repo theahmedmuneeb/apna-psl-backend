@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
+import { isUserAdmin } from "@/lib/auth/is-admin"
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
@@ -65,20 +66,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Check admin role
-  const userMetadata = (user.user_metadata || {}) as Record<string, unknown>
-  const appMetadata = (user.app_metadata || {}) as Record<string, unknown>
-
-  const isAdmin =
-    (typeof userMetadata.role === "string" && userMetadata.role.toLowerCase() === "admin") ||
-    (typeof appMetadata.role === "string" && appMetadata.role.toLowerCase() === "admin") ||
-    (Array.isArray(userMetadata.roles) && 
-     userMetadata.roles.some((r) => typeof r === "string" && r.toLowerCase() === "admin")) ||
-    (Array.isArray(appMetadata.roles) && 
-     appMetadata.roles.some((r) => typeof r === "string" && r.toLowerCase() === "admin"))
-
   // Not admin = sign out and redirect
-  if (!isAdmin) {
+  if (!isUserAdmin(user)) {
     await supabase.auth.signOut()
     const url = request.nextUrl.clone()
     url.pathname = "/sign-in"

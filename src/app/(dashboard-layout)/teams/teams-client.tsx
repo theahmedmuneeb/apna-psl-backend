@@ -1,18 +1,20 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
-import type { teams } from "@/db/schema"
 import { ButtonLoading } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-type TeamRow = typeof teams.$inferSelect
-type TeamActionResult = {
-  success: boolean
-  message: string
+type TeamRow = {
+  id: string
+  name: string
+  short: string
+  sportmonksTeamId: number
+  logo: string | null
+  isPlaceholder: boolean
 }
 
 type TeamFormValues = {
@@ -20,28 +22,15 @@ type TeamFormValues = {
   shortName: string
   sportmonksTeamId: number
   logoFile: FileList
+  isPlaceholder: boolean
 }
 
-type TeamsClientProps = {
-  teamsList: TeamRow[]
-  supabaseBaseUrl: string
-  logosBucket: string
-  createTeamAction: (formData: FormData) => Promise<TeamActionResult>
-  updateTeamAction: (formData: FormData) => Promise<TeamActionResult>
-  deleteTeamAction: (formData: FormData) => Promise<TeamActionResult>
-}
-
-export function TeamsClient({
-  teamsList,
-  supabaseBaseUrl,
-  logosBucket,
-  createTeamAction,
-  updateTeamAction,
-  deleteTeamAction,
-}: TeamsClientProps) {
+export function TeamsClient() {
   const router = useRouter()
-  const [isSubmitting, startSubmitTransition] = useTransition()
-  const [isDeleting, startDeleteTransition] = useTransition()
+  const [teamsList, setTeamsList] = useState<TeamRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null)
   const [editingTeam, setEditingTeam] = useState<TeamRow | null>(null)
   const {
@@ -54,56 +43,74 @@ export function TeamsClient({
       name: "",
       shortName: "",
       sportmonksTeamId: undefined,
+      isPlaceholder: false,
     },
   })
+
+  const fetchTeams = async () => {
+    try {
+      const res = await fetch("/api/teams?includePlaceholders=true")
+      const json = await res.json()
+      if (json.success) setTeamsList(json.data)
+    } catch {
+      toast.error("Failed to load teams")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchTeams()
+  }, [])
 
   useEffect(() => {
     reset({
       name: editingTeam?.name ?? "",
-      shortName: editingTeam?.shortName ?? "",
+      shortName: editingTeam?.short ?? "",
       sportmonksTeamId: editingTeam?.sportmonksTeamId,
+      isPlaceholder: editingTeam?.isPlaceholder ?? false,
     })
   }, [editingTeam, reset])
 
   const getLogoUrl = (logoPath: string | null) => {
     if (!logoPath) return null
-    return `${supabaseBaseUrl}/storage/v1/object/public/${logosBucket}/${logoPath}`
+    if (/^https?:\/\//i.test(logoPath)) return logoPath
+    return `/api/teams/logo?path=${encodeURIComponent(logoPath)}`
   }
 
-  const handleCreateOrUpdateSubmit = (values: TeamFormValues) => {
+  const handleCreateOrUpdateSubmit = async (values: TeamFormValues) => {
     const formData = new FormData()
     formData.set("name", values.name)
     formData.set("shortName", values.shortName)
     formData.set("sportmonksTeamId", String(values.sportmonksTeamId))
+    formData.set("isPlaceholder", String(values.isPlaceholder))
 
     const logo = values.logoFile?.[0]
     if (logo) {
       formData.set("logoFile", logo)
     }
 
-    if (editingTeam) {
-      formData.set("teamId", editingTeam.id)
-    }
+    setIsSubmitting(true)
+    try {
+      const url = editingTeam ? `/api/teams/${editingTeam.id}` : "/api/teams"
+      const method = editingTeam ? "PATCH" : "POST"
+      const res = await fetch(url, { method, body: formData })
+      const json = await res.json()
 
-    startSubmitTransition(async () => {
-      const result = editingTeam
-        ? await updateTeamAction(formData)
-        : await createTeamAction(formData)
-
-      if (!result.success) {
-        toast.error(result.message)
+      if (!json.success) {
+        toast.error(json.message)
         return
       }
 
-      toast.success(result.message)
-      reset({
-        name: "",
-        shortName: "",
-        sportmonksTeamId: undefined,
-      })
+      toast.success(json.message)
+      reset({ name: "", shortName: "", sportmonksTeamId: undefined, isPlaceholder: false })
       setEditingTeam(null)
-      router.refresh()
-    })
+      fetchTeams()
+    } catch {
+      toast.error("Failed to save team")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleStartEdit = (team: TeamRow) => {
@@ -112,32 +119,38 @@ export function TeamsClient({
 
   const handleCancelEdit = () => {
     setEditingTeam(null)
-    reset({
-      name: "",
-      shortName: "",
-      sportmonksTeamId: undefined,
-    })
+    reset({ name: "", shortName: "", sportmonksTeamId: undefined, isPlaceholder: false })
   }
 
-  const handleDelete = (teamId: string) => {
+  const handleDelete = async (teamId: string) => {
     setDeletingTeamId(teamId)
+    setIsDeleting(true)
 
-    startDeleteTransition(async () => {
-      const formData = new FormData()
-      formData.set("teamId", teamId)
+    try {
+      const res = await fetch(`/api/teams/${teamId}`, { method: "DELETE" })
+      const json = await res.json()
 
-      const result = await deleteTeamAction(formData)
-
-      if (!result.success) {
-        toast.error(result.message)
-        setDeletingTeamId(null)
+      if (!json.success) {
+        toast.error(json.message)
         return
       }
 
-      toast.success(result.message)
+      toast.success(json.message)
+      fetchTeams()
+    } catch {
+      toast.error("Failed to delete team")
+    } finally {
       setDeletingTeamId(null)
-      router.refresh()
-    })
+      setIsDeleting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="container py-6">
+        <p className="text-muted-foreground">Loading teams...</p>
+      </div>
+    )
   }
 
   return (
@@ -223,15 +236,23 @@ export function TeamsClient({
 
           <div className="space-y-2">
             <label htmlFor="logoFile" className="text-sm font-medium">
-              Team Logo
+              Team Logo (optional)
             </label>
             <Input id="logoFile" type="file" accept="image/*" {...register("logoFile")} />
             <p className="text-xs text-muted-foreground">
               {editingTeam
                 ? "Upload a new logo only if you want to replace the existing one."
-                : "Upload an image. It will be stored in Supabase Storage and the path will be saved in the database."}
+                : "Upload an image for the team logo. Optional for placeholder teams."}
             </p>
           </div>
+
+          <label className="inline-flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              {...register("isPlaceholder")}
+            />
+            Placeholder team (e.g. TBC)
+          </label>
 
           <ButtonLoading isLoading={isSubmitting} disabled={isSubmitting} className="w-full">
             {editingTeam ? "Save Changes" : "Add Team"}
@@ -277,22 +298,22 @@ export function TeamsClient({
                   {teamsList.map((team) => (
                     <tr key={team.id} className="border-b last:border-b-0">
                       <td className="px-4 py-3">
-                        {getLogoUrl(team.logoUrl) ? (
+                        {team.logo ? (
                           <div className="relative h-10 w-10 overflow-hidden rounded-full border bg-muted">
                             <img
-                              src={getLogoUrl(team.logoUrl)!}
+                              src={team.logo}
                               alt={team.name}
                               className="h-full w-full object-contain p-1"
                             />
                           </div>
                         ) : (
                           <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-muted text-xs font-semibold">
-                            {team.shortName}
+                            {team.short}
                           </div>
                         )}
                       </td>
                       <td className="px-4 py-3 font-medium">{team.name}</td>
-                      <td className="px-4 py-3">{team.shortName}</td>
+                      <td className="px-4 py-3">{team.short}</td>
                       <td className="px-4 py-3">{team.sportmonksTeamId}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">

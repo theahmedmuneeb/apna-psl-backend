@@ -9,6 +9,8 @@ export const env = createEnv({
     SPORTMONKS_API_TOKEN: z.string().min(1),
     SPORTMONKS_PSL_LEAGUE_ID: z.coerce.number().int().positive(),
     SPORTMONKS_PSL_SEASON_ID: z.coerce.number().int().positive(),
+    SIGNER_PRIVATE_KEY: z.string().min(1),
+    TICKET_CONTRACT_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
   },
   client: {
     NEXT_PUBLIC_WALLET_BRIDGE_DEEP_LINK_BASE: z
@@ -92,5 +94,7 @@ export const env = createEnv({
     SPORTMONKS_API_TOKEN: process.env.SPORTMONKS_API_TOKEN,
     SPORTMONKS_PSL_LEAGUE_ID: process.env.SPORTMONKS_PSL_LEAGUE_ID,
     SPORTMONKS_PSL_SEASON_ID: process.env.SPORTMONKS_PSL_SEASON_ID,
+    SIGNER_PRIVATE_KEY: process.env.SIGNER_PRIVATE_KEY,
+    TICKET_CONTRACT_ADDRESS: process.env.TICKET_CONTRACT_ADDRESS,
   },
-})
+});

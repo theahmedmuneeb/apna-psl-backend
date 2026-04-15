@@ -1,11 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 "use client"
 
-import { useRouter } from "next/navigation"
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-
-import type { stories } from "@/db/schema"
 
 import { Button, ButtonLoading } from "@/components/ui/button"
 import {
@@ -19,20 +16,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { RichTextEditor } from "@/components/ui/rich-text-editor"
 
-type StoryRow = typeof stories.$inferSelect
-
-type StoryActionResult = {
-  success: boolean
-  message: string
-}
-
-type StoriesClientProps = {
-  storiesList: StoryRow[]
-  supabaseBaseUrl: string
-  storageBucket: string
-  createStoryAction: (formData: FormData) => Promise<StoryActionResult>
-  updateStoryAction: (formData: FormData) => Promise<StoryActionResult>
-  deleteStoryAction: (formData: FormData) => Promise<StoryActionResult>
+type StoryRow = {
+  id: string
+  title: string
+  content: string
+  thumbnail: string
+  isFeatured: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 type StoryEditorState = {
@@ -58,18 +49,12 @@ const editorModules = {
   ],
 }
 
-export function StoriesClient({
-  storiesList,
-  supabaseBaseUrl,
-  storageBucket,
-  createStoryAction,
-  updateStoryAction,
-  deleteStoryAction,
-}: StoriesClientProps) {
-  const router = useRouter()
-  const [isCreating, startCreateTransition] = useTransition()
-  const [isUpdating, startUpdateTransition] = useTransition()
-  const [isDeleting, startDeleteTransition] = useTransition()
+export function StoriesClient() {
+  const [storiesList, setStoriesList] = useState<StoryRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [isCreating, setIsCreating] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const [createState, setCreateState] = useState<StoryEditorState>(emptyEditorState)
   const [editState, setEditState] = useState<StoryEditorState>(emptyEditorState)
@@ -79,6 +64,20 @@ export function StoriesClient({
   const [deletingStoryId, setDeletingStoryId] = useState<string | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
+  const fetchStories = async () => {
+    try {
+      const res = await fetch("/api/stories")
+      const json = await res.json()
+      if (json.success) setStoriesList(json.data)
+    } catch {
+      toast.error("Failed to load stories")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchStories() }, [])
+
   const createContentError = useMemo(() => {
     return createState.content.replace(/<(.|\n)*?>/g, "").trim().length === 0
   }, [createState.content])
@@ -87,15 +86,7 @@ export function StoriesClient({
     return editState.content.replace(/<(.|\n)*?>/g, "").trim().length === 0
   }, [editState.content])
 
-  const getThumbnailUrl = (thumbnailPath: string) => {
-    if (/^https?:\/\//i.test(thumbnailPath)) {
-      return thumbnailPath
-    }
-
-    return `${supabaseBaseUrl}/storage/v1/object/public/${storageBucket}/${thumbnailPath.replace(/^\/+/, "")}`
-  }
-
-  const handleCreateSubmit = () => {
+  const handleCreateSubmit = async () => {
     if (!createState.title.trim() || createContentError) {
       toast.error("Title and content are required.")
       return
@@ -106,25 +97,31 @@ export function StoriesClient({
       return
     }
 
-    startCreateTransition(async () => {
+    setIsCreating(true)
+    try {
       const formData = new FormData()
       formData.set("title", createState.title.trim())
       formData.set("thumbnailFile", createThumbnailFile)
       formData.set("content", createState.content)
       formData.set("isFeatured", String(createState.isFeatured))
 
-      const result = await createStoryAction(formData)
+      const res = await fetch("/api/stories", { method: "POST", body: formData })
+      const json = await res.json()
 
-      if (!result.success) {
-        toast.error(result.message)
+      if (!json.success) {
+        toast.error(json.message)
         return
       }
 
-      toast.success(result.message)
+      toast.success(json.message)
       setCreateState(emptyEditorState)
       setCreateThumbnailFile(null)
-      router.refresh()
-    })
+      fetchStories()
+    } catch {
+      toast.error("Failed to create story")
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   const openEditDialog = (story: StoryRow) => {
@@ -139,7 +136,7 @@ export function StoriesClient({
     setIsEditDialogOpen(true)
   }
 
-  const handleUpdateSubmit = () => {
+  const handleUpdateSubmit = async () => {
     if (!editState.id) {
       toast.error("Missing story id.")
       return
@@ -152,9 +149,9 @@ export function StoriesClient({
       return
     }
 
-    startUpdateTransition(async () => {
+    setIsUpdating(true)
+    try {
       const formData = new FormData()
-      formData.set("storyId", storyId)
       formData.set("title", editState.title.trim())
       if (editThumbnailFile) {
         formData.set("thumbnailFile", editThumbnailFile)
@@ -162,41 +159,56 @@ export function StoriesClient({
       formData.set("content", editState.content)
       formData.set("isFeatured", String(editState.isFeatured))
 
-      const result = await updateStoryAction(formData)
+      const res = await fetch(`/api/stories/${storyId}`, { method: "PATCH", body: formData })
+      const json = await res.json()
 
-      if (!result.success) {
-        toast.error(result.message)
+      if (!json.success) {
+        toast.error(json.message)
         return
       }
 
-      toast.success(result.message)
+      toast.success(json.message)
       setIsEditDialogOpen(false)
       setEditingStoryId(null)
       setEditState(emptyEditorState)
       setEditThumbnailFile(null)
-      router.refresh()
-    })
+      fetchStories()
+    } catch {
+      toast.error("Failed to update story")
+    } finally {
+      setIsUpdating(false)
+    }
   }
 
-  const handleDelete = (storyId: string) => {
+  const handleDelete = async (storyId: string) => {
     setDeletingStoryId(storyId)
+    setIsDeleting(true)
 
-    startDeleteTransition(async () => {
-      const formData = new FormData()
-      formData.set("storyId", storyId)
+    try {
+      const res = await fetch(`/api/stories/${storyId}`, { method: "DELETE" })
+      const json = await res.json()
 
-      const result = await deleteStoryAction(formData)
-
-      if (!result.success) {
-        toast.error(result.message)
-        setDeletingStoryId(null)
+      if (!json.success) {
+        toast.error(json.message)
         return
       }
 
-      toast.success(result.message)
+      toast.success(json.message)
+      fetchStories()
+    } catch {
+      toast.error("Failed to delete story")
+    } finally {
       setDeletingStoryId(null)
-      router.refresh()
-    })
+      setIsDeleting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="container py-6">
+        <p className="text-muted-foreground">Loading stories...</p>
+      </div>
+    )
   }
 
   return (
@@ -244,7 +256,7 @@ export function StoriesClient({
             }}
           />
           <p className="text-xs text-muted-foreground">
-            Thumbnail image will be uploaded to the same Supabase bucket used for team logos.
+            Thumbnail image will be uploaded to Supabase Storage.
           </p>
         </div>
 
@@ -305,7 +317,7 @@ export function StoriesClient({
                   <tr key={story.id} className="border-b last:border-b-0 align-top">
                     <td className="px-4 py-3">
                       <img
-                        src={getThumbnailUrl(story.thumbnail)}
+                        src={story.thumbnail}
                         alt={story.title}
                         className="h-14 w-24 rounded-md border object-cover bg-muted"
                       />
