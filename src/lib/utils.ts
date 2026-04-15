@@ -340,3 +340,12 @@ export function getDictionaryValue(
 
   return value
 }
+
+export function toPKTString(date: Date | string | null | undefined) {
+  if (!date) return date;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  const offsetMillis = 5 * 60 * 60 * 1000;
+  const pkTime = new Date(d.getTime() + offsetMillis);
+  return pkTime.toISOString().replace("Z", "+05:00");
+}

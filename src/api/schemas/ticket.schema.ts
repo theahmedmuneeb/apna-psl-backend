@@ -1,7 +1,8 @@
 import { z } from 'zod'
 
 export const createTicketSchema = z.object({
-    ownerId: z.string().uuid(),
+    ownerId: z.string().uuid().nullable().optional(),
+    walletAddress: z.string().max(42),
     matchId: z.string().uuid(),
     seatId: z.string().uuid(),
     enclosureCategoryId: z.string().uuid(),
@@ -12,6 +13,8 @@ export const createTicketSchema = z.object({
 })
 
 export const updateTicketSchema = z.object({
+    ownerId: z.string().uuid().nullable().optional(),
+    walletAddress: z.string().max(42).optional(),
     nftContractAddress: z.string().max(42).nullable().optional(),
     nftTokenId: z.string().max(78).nullable().optional(),
     nftMetadata: z.record(z.string(), z.unknown()).nullable().optional(),

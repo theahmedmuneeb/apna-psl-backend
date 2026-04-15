@@ -29,6 +29,28 @@ const findSeatByBytes32 = async (seatIdBytes: string) => {
     return null
 }
 
+const resolveOwnerIdByWallet = async (walletAddress: string) => {
+    const normalizedWallet = walletAddress.toLowerCase()
+    const [profile] = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.walletAddress, normalizedWallet))
+        .limit(1)
+        .execute()
+
+    if (profile) {
+        return profile.id
+    }
+
+    const allProfiles = await db
+        .select({ id: profiles.id, walletAddress: profiles.walletAddress })
+        .from(profiles)
+        .execute()
+
+    const matched = allProfiles.find((p) => p.walletAddress?.toLowerCase() === normalizedWallet)
+    return matched?.id ?? null
+}
+
 // ── Main confirm function ──
 export const confirmBooking = async (txHash: string) => {
     // 1. Connect to RPC and fetch receipt
@@ -80,6 +102,7 @@ export const confirmBooking = async (txHash: string) => {
     // 3. Extract event data
     const tokenId = mintedEvent.args.tokenId.toString()
     const buyerAddress = mintedEvent.args.buyer as string
+    const buyerWalletAddress = buyerAddress.toLowerCase()
     const matchIdBytes = mintedEvent.args.matchId as string
     const seatIdBytes = mintedEvent.args.seatId as string
 
@@ -160,39 +183,12 @@ export const confirmBooking = async (txHash: string) => {
         throw new SigningError('This NFT has already been recorded', 409, 'DUPLICATE_NFT')
     }
 
-    // 7. Find owner profile by wallet address (if not already known from lock/pending)
+    // 7. Resolve app-level owner mapping by wallet when available.
     if (!ownerId) {
-        const [profile] = await db
-            .select({ id: profiles.id })
-            .from(profiles)
-            .where(eq(profiles.walletAddress, buyerAddress.toLowerCase()))
-            .limit(1)
-            .execute()
-
-        if (profile) {
-            ownerId = profile.id
-        } else {
-            // Try case-insensitive fallback loop
-            console.log(`[confirmBooking] Profile not found by direct address match, trying fallback scan...`)
-            const allProfiles = await db
-                .select({ id: profiles.id, walletAddress: profiles.walletAddress })
-                .from(profiles)
-                .execute()
-
-            const matched = allProfiles.find(
-                (p) => p.walletAddress?.toLowerCase() === buyerAddress.toLowerCase(),
-            )
-            if (matched) {
-                ownerId = matched.id
-            }
-        }
+        ownerId = await resolveOwnerIdByWallet(buyerWalletAddress)
     }
 
-    if (!ownerId) {
-        throw new SigningError('No profile found for buyer wallet address', 404, 'PROFILE_NOT_FOUND')
-    }
-
-    const result = await insertTicket(ownerId, matchId, seatId, tokenId, txHash)
+    const result = await insertTicket(ownerId, buyerWalletAddress, matchId, seatId, tokenId, txHash)
 
     // 8. Persistent Cleanup
     try {
@@ -212,7 +208,14 @@ export const confirmBooking = async (txHash: string) => {
     return result
 }
 
-async function insertTicket(ownerId: string, matchId: string, seatId: string, tokenId: string, txHash: string) {
+async function insertTicket(
+    ownerId: string | null,
+    walletAddress: string,
+    matchId: string,
+    seatId: string,
+    tokenId: string,
+    txHash: string,
+) {
     // Look up enclosure category from seat
     const [seat] = await db
         .select({ enclosureId: seats.enclosureId })
@@ -233,6 +236,7 @@ async function insertTicket(ownerId: string, matchId: string, seatId: string, to
         .insert(tickets)
         .values({
             ownerId,
+            walletAddress,
             matchId,
             seatId,
             enclosureCategoryId: enclosure!.enclosureCategoryId,

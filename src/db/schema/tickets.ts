@@ -8,7 +8,8 @@ export const ticketStatusEnum = pgEnum('ticket_status', ['valid', 'used', 'cance
 
 export const tickets = pgTable('tickets', {
     id: uuid('id').defaultRandom().primaryKey(),
-    ownerId: uuid('owner_id').notNull().references(() => profiles.id, { onDelete: 'restrict' }),
+    ownerId: uuid('owner_id').references(() => profiles.id, { onDelete: 'restrict' }),
+    walletAddress: varchar('wallet_address', { length: 42 }).notNull(),
     matchId: uuid('match_id').notNull().references(() => matches.id, { onDelete: 'restrict' }),
     seatId: uuid('seat_id').notNull().references(() => seats.id, { onDelete: 'restrict' }),
     enclosureCategoryId: uuid('enclosure_category_id').notNull().references(() => enclosureCategories.id, { onDelete: 'restrict' }),

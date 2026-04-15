@@ -14,7 +14,6 @@ export const matchRoute = new Hono<{ Variables: AppVariables }>();
 
 matchRoute.get("/", authMiddleware, async (c) => {
   const matches = await matchService.getAllMatches();
-  console.log("Matches: ", matches);
   return apiSuccess(c, matches, { message: "Matches fetched successfully" });
 });
 

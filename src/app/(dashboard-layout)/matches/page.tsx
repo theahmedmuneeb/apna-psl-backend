@@ -92,13 +92,19 @@ export default function MatchesPage() {
     if (fixtures.length === 0) fetchFixtures()
   }
 
+  // Convert any date string to a "YYYY-MM-DDTHH:mm" value in PKT for datetime-local inputs
+  const toPKTLocal = (d: string) => {
+    const date = new Date(d)
+    return date.toLocaleString("sv-SE", { timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).replace(" ", "T")
+  }
+
   const openEdit = (m: Match) => {
     setEditing(m)
     setForm({
       teamAId: m.teamA.id,
       teamBId: m.teamB.id,
       stadiumId: m.stadium.id,
-      startTime: new Date(m.startTime).toISOString().slice(0, 16),
+      startTime: toPKTLocal(m.startTime),
       sportmonksMatchId: m.sportmonksMatchId?.toString() ?? "",
     })
     setTab("manual")
@@ -115,7 +121,7 @@ export default function MatchesPage() {
       teamAId: localTeam?.id ?? "",
       teamBId: visitorTeam?.id ?? "",
       stadiumId: stadium?.id ?? "",
-      startTime: fixture.starting_at ? new Date(fixture.starting_at).toISOString().slice(0, 16) : "",
+      startTime: fixture.starting_at ? toPKTLocal(fixture.starting_at) : "",
       sportmonksMatchId: fixture.id.toString(),
     })
     setTab("manual")
@@ -132,7 +138,7 @@ export default function MatchesPage() {
         teamAId: form.teamAId,
         teamBId: form.teamBId,
         stadiumId: form.stadiumId,
-        startTime: new Date(form.startTime).toISOString(),
+        startTime: form.startTime + ":00+05:00",
       }
       if (!editing && form.sportmonksMatchId) {
         body.sportmonksMatchId = parseInt(form.sportmonksMatchId, 10)
@@ -163,7 +169,7 @@ export default function MatchesPage() {
     } catch { toast.error("Failed to delete") }
   }
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
+  const formatDate = (d: string) => new Date(d).toLocaleString("en-US", { timeZone: "Asia/Karachi", weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
 
   return (
     <div className="p-6 space-y-6">
@@ -201,7 +207,7 @@ export default function MatchesPage() {
                   const upcoming = fixtures.filter((f) => {
                     if (f.status && f.status.toUpperCase() !== "NS") return false
                     if (!f.starting_at) return false
-                    return new Date(f.starting_at) > now
+                    return new Date(f.starting_at).getTime() > now.getTime()
                   })
                   return upcoming.length === 0 ? (
                     <p className="text-center text-muted-foreground py-4">No upcoming fixtures found</p>

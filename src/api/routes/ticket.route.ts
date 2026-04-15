@@ -19,7 +19,10 @@ import {
   SigningError,
 } from "@/api/services/ticket-signing.service";
 import { confirmBooking } from "@/api/services/ticket-confirm.service";
-import { reconcilePendingTickets } from "@/api/services/ticket-reconcile.service";
+import {
+  reconcilePendingTickets,
+  syncTicketTransfersFromChain,
+} from "@/api/services/ticket-reconcile.service";
 
 export const ticketRoute = new Hono<{ Variables: AppVariables }>();
 
@@ -85,14 +88,63 @@ ticketRoute.post(
 );
 
 ticketRoute.get("/recheck", authMiddleware, async (c) => {
-  const result = await reconcilePendingTickets();
-  return apiSuccess(c, result, { message: "Reconciliation process completed" });
+  const [pendingResult, transferResult] = await Promise.allSettled([
+    reconcilePendingTickets(),
+    syncTicketTransfersFromChain(),
+  ]);
+
+  const pending =
+    pendingResult.status === "fulfilled"
+      ? pendingResult.value
+      : {
+          failed: true,
+          error:
+            pendingResult.reason instanceof Error
+              ? pendingResult.reason.message
+              : String(pendingResult.reason),
+        };
+
+  const transfers =
+    transferResult.status === "fulfilled"
+      ? transferResult.value
+      : {
+          failed: true,
+          error:
+            transferResult.reason instanceof Error
+              ? transferResult.reason.message
+              : String(transferResult.reason),
+        };
+
+  const hasAnyFailure =
+    pendingResult.status === "rejected" || transferResult.status === "rejected";
+
+  return apiSuccess(
+    c,
+    {
+      pending,
+      transfers,
+      hasAnyFailure,
+    },
+    {
+      message: hasAnyFailure
+        ? "Recheck completed with partial failures"
+        : "Reconciliation process completed",
+    },
+  );
 });
 
 // ── User route (must be defined BEFORE /:id to avoid conflict) ──
 ticketRoute.get("/my", authMiddleware, profileMiddleware, async (c) => {
-  const user = c.get("supabaseUser");
-  const tickets = await ticketService.getTicketsByOwner(user.id);
+  const profile = c.get("profile");
+
+  if (!profile.wallet) {
+    return apiError(c, "No wallet linked to this profile", {
+      statusCode: 400,
+      error: "WALLET_NOT_LINKED",
+    });
+  }
+
+  const tickets = await ticketService.getTicketsByWallet(profile.wallet);
   return apiSuccess(c, tickets, {
     message: "Your tickets fetched successfully",
   });
@@ -102,6 +154,7 @@ ticketRoute.get("/my", authMiddleware, profileMiddleware, async (c) => {
 ticketRoute.get("/", authMiddleware, async (c) => {
   const matchId = c.req.query("matchId");
   const ownerId = c.req.query("ownerId");
+  const walletAddress = c.req.query("walletAddress");
 
   if (matchId) {
     const tickets = await ticketService.getTicketsByMatch(matchId);
@@ -113,6 +166,12 @@ ticketRoute.get("/", authMiddleware, async (c) => {
     const tickets = await ticketService.getTicketsByOwner(ownerId);
     return apiSuccess(c, tickets, {
       message: "Tickets for owner fetched successfully",
+    });
+  }
+  if (walletAddress) {
+    const tickets = await ticketService.getTicketsByWallet(walletAddress);
+    return apiSuccess(c, tickets, {
+      message: "Tickets for wallet fetched successfully",
     });
   }
 

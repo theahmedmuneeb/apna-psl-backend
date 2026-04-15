@@ -4,6 +4,7 @@ import { eq, desc, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { env } from '@/env'
 import { psl } from '@/lib/sportmonks'
+import { toPKTString } from '@/lib/utils'
 import type { CreateMatchInput, UpdateMatchInput } from '@/api/schemas/match.schema'
 
 const teamA = alias(teams, 'teamA')
@@ -21,6 +22,8 @@ const formatMatchResponse = (match: any, smTeamsMap: Map<number, any>) => {
 
     return {
         ...match,
+        startTime: toPKTString(match.startTime),
+        createdAt: toPKTString(match.createdAt),
         teamA: {
             ...match.teamA,
             logoUrl: smTeamA?.image_path || formatLogoUrl(match.teamA.logoUrl),

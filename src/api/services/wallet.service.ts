@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { profiles } from '@/db/schema'
+import { profiles, tickets } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 
 export type LinkedWallet = {
@@ -11,10 +11,12 @@ export const setUserWalletAddress = async (
     userId: string,
     walletAddress: string,
 ): Promise<LinkedWallet> => {
+    const normalizedWalletAddress = walletAddress.toLowerCase()
+
     const [updatedProfile] = await db
         .update(profiles)
         .set({
-            walletAddress,
+            walletAddress: normalizedWalletAddress,
             updatedAt: new Date(),
         })
         .where(eq(profiles.id, userId))
@@ -27,6 +29,16 @@ export const setUserWalletAddress = async (
     if (!updatedProfile || !updatedProfile.walletAddress) {
         throw new Error('Profile not found while linking wallet')
     }
+
+    // Lazy association: attach tickets already owned by this wallet to the current profile.
+    await db
+        .update(tickets)
+        .set({
+            ownerId: userId,
+            updatedAt: new Date(),
+        })
+        .where(eq(tickets.walletAddress, normalizedWalletAddress))
+        .execute()
 
     return {
         profileId: updatedProfile.profileId,

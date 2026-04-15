@@ -2,7 +2,7 @@
     "cron": [
         {
             "path": "/api/tickets/recheck",
-            "schedule": "*/2 * * * *"
+            "schedule": "*/10 * * * *"
         }
     ]
 }

@@ -22,6 +22,7 @@ const app = new Hono<{ Variables: AppVariables }>().basePath('/api')
 app.use('*', trimTrailingSlash())
 
 app.onError((err, c) => {
+  console.error('[api] Unhandled error:', err)
   return apiError(c, 'Internal Server Error', {
     statusCode: 500,
     error: 'INTERNAL_SERVER_ERROR',
