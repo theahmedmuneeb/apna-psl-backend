@@ -119,7 +119,8 @@ export function formatPercent(value: number, locales: Intl.LocalesArgument = "en
 }
 
 export function formatDate(value: string | number | Date) {
-  return format(value, "PP")
+  const date = typeof value === "string" ? new Date(value) : value
+  return format(date, "PP")
 }
 
 export function formatRelativeDate(value?: string | number | Date) {
@@ -133,7 +134,7 @@ export function formatRelativeDate(value?: string | number | Date) {
   if (date.toDateString() === today.toDateString()) return "Today"
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday"
 
-  return formatDate(value)
+  return formatDate(date)
 }
 
 export function formatDateWithTime(value: string | number | Date) {
