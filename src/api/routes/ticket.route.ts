@@ -87,7 +87,7 @@ ticketRoute.post(
   },
 );
 
-ticketRoute.get("/recheck", authMiddleware, async (c) => {
+ticketRoute.get("/recheck", async (c) => {
   const [pendingResult, transferResult] = await Promise.allSettled([
     reconcilePendingTickets(),
     syncTicketTransfersFromChain(),
