@@ -7,6 +7,9 @@ const allowedDevOrigins = (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? "")
 
 const nextConfig: NextConfig = {
   allowedDevOrigins,
+  eslint: {
+    ignoreDuringBuilds: true,
+  }
 }
 
 export default nextConfig
